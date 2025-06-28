@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36221.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RG_ExtendedSave", "RG_ExtendedSave\RG_ExtendedSave.csproj", "{7C15A337-316F-4A2C-8A89-4809D87BDD1A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RG_HeightMod", "RG_HeightMod\RG_HeightMod.csproj", "{A4C87B7B-0788-4097-9DD0-7AC64DB7B374}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7C15A337-316F-4A2C-8A89-4809D87BDD1A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C15A337-316F-4A2C-8A89-4809D87BDD1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C15A337-316F-4A2C-8A89-4809D87BDD1A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C15A337-316F-4A2C-8A89-4809D87BDD1A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4C87B7B-0788-4097-9DD0-7AC64DB7B374}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4C87B7B-0788-4097-9DD0-7AC64DB7B374}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4C87B7B-0788-4097-9DD0-7AC64DB7B374}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4C87B7B-0788-4097-9DD0-7AC64DB7B374}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {75988620-022D-4CB1-9060-A5BE92CF6F50}
+	EndGlobalSection
+EndGlobal
