@@ -6,10 +6,11 @@ using BepInEx.Logging;
 using Chara;
 using CharaCustom;
 using HarmonyLib;
-using RGExtendedSave;
+using Il2CppSystem.Collections.Generic;
 using System.Collections;
 using UnhollowerRuntimeLib;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace RG_HeightMod
 {
@@ -18,12 +19,11 @@ namespace RG_HeightMod
     {
         public const string PluginName = "RoomGirl Height Mod";
         public const string GUID = "RoomGirl.Glueman.HeightMod";
-        public const string Version = "2.5.0";
-        internal static new ManualLogSource Log;
+        public const string Version = "3.0.0";
 
         internal static ConfigEntry<int> NumberOfTry;
-        internal static ConfigEntry<bool> ApplyHeight;
 
+        internal static new ManualLogSource Log;
         public static GameObject ControllerObject;
         public static MonoBehaviour ControllerInstance;
 
@@ -32,17 +32,15 @@ namespace RG_HeightMod
             Log = base.Log;
 
             NumberOfTry = Config.Bind("Debug", "When character studio is opened, this mod will try in loop to find the height slider until it it gets created and the mod finds it. This is the max ammount of try allowed. The default 300 should be 100s at 60fps. You can try to increase this number if the height slidder doesnt appear and you have long loadings", 300);
-            ApplyHeight = Config.Bind("Debug", "Apply height > change the value (from on to off or off to on) of this settings to reforce apply the height number to charachters present", true);
 
             ClassInjector.RegisterTypeInIl2Cpp<HeightModController>();
-            ClassInjector.RegisterTypeInIl2Cpp<HeightModCharaController>();
 
             ControllerObject = new GameObject("HeightModGameObject");
             GameObject.DontDestroyOnLoad(ControllerObject);
             ControllerObject.hideFlags = HideFlags.HideAndDontSave;
             ControllerObject.AddComponent<HeightModController>();
 
-            Harmony.CreateAndPatchAll(typeof(Hooks));
+            Harmony.CreateAndPatchAll(typeof(Hooks), GUID);
         }
     }
 
@@ -51,90 +49,101 @@ namespace RG_HeightMod
         public void Awake() => HeightMod.ControllerInstance = this;
     }
 
-    public class HeightModCharaController : MonoBehaviour
-    {
-        public ChaControl ChaControlInstance { get; private set; }
-
-        protected void Awake() => MonoBehaviourExtensions.StartCoroutine(HeightMod.ControllerInstance, DelayApplyMaleHeight());
-
-        public IEnumerator DelayApplyMaleHeight()
-        {
-            if (ChaControlInstance.Sex == 0)
-            {
-                ChaControlInstance = GetComponent<ChaControl>();
-
-                for (int i = 0; i < 60; i++) yield return null;
-
-                PluginData data = ExtendedSave.GetExtendedDataById(ChaControlInstance.ChaFile, HeightMod.GUID);
-                if (data != null && data.data.TryGetValue("HeightSave", out var val) && val is float fVal) ChaControlInstance.ChaFile.Custom.body.shapeValueBody[0] = fVal;
-
-                yield return null;
-                ChaControlInstance.UpdateShapeBodyValueFromCustomInfo();
-
-                Events.CardBeingSaved += OnCardBeingSaved;
-                HeightMod.ApplyHeight.SettingChanged += (sender, e) => ChaControlInstance.UpdateShapeBodyValueFromCustomInfo();
-            }
-            else
-            {
-                // Remove this component
-            }
-        }
-
-        public void OnCardBeingSaved(ChaFile file)
-        {
-            if (file == ChaControlInstance.ChaFile)
-            {
-                PluginData data = new PluginData();
-                data.data.Add("HeightSave", ChaControlInstance.ChaFile.Custom.body.shapeValueBody[0]);
-                data.version = 1;
-                ExtendedSave.SetExtendedDataById(ChaControlInstance.ChaFile, HeightMod.GUID, data);
-            }
-        }
-    }
-
     internal static class Hooks 
     {
         [HarmonyPostfix, HarmonyPatch(typeof(CustomBase), nameof(CustomBase.Awake))]
-        public static void Show_MaleHeightSlider_Patch()
+        public static void Ennable_MaleHeightSlider()
         {
-            MonoBehaviourExtensions.StartCoroutine(HeightMod.ControllerInstance, IGuessThisHasToBeDelayed());
+            MonoBehaviourExtensions.StartCoroutine(HeightMod.ControllerInstance, DelayEnnableMaleHeightSlider());
 
-            IEnumerator IGuessThisHasToBeDelayed()
+            IEnumerator DelayEnnableMaleHeightSlider()
             {
                 for (int i = HeightMod.NumberOfTry.Value; i > 0; i--)
                 {
                     for (int j = 20;  j > 0; j--) yield return null;
 
-                    Transform element = GameObject.Find("CharaCustom/CustomControl/CanvasSub/SettingWindow/WinBody/B_ShapeWhole/Scroll View/Viewport/Content")?.transform.GetChild(0);
-                    element?.gameObject.SetActive(true);
+                    Transform heightSlider = GameObject.Find("CharaCustom/CustomControl/CanvasSub/SettingWindow/WinBody/B_ShapeWhole/Scroll View/Viewport/Content")?.transform.GetChild(0);
+                    if (heightSlider != null)
+                    {
+                        heightSlider.gameObject.SetActive(true);
+                        yield break;
+                    }
                 }
             }
         }
+        
+        public static Dictionary<int, float> CapturedHeight = new Dictionary<int, float>();
 
-        [HarmonyPostfix, HarmonyPatch(typeof(ChaControl), nameof(ChaControl.Initialize))]
-        public static void Remove_InitializeMaleHeightOverriding_Patch(ChaControl __instance, ChaFileControl _chaFile = null)
+        [HarmonyPrefix, HarmonyPatch(typeof(ChaControl), nameof(ChaControl.Initialize))]
+        public static void Capture_InitialMaleHeight(byte _sex, int _id, ChaFileControl _chaFile = null)
         {
-            if (__instance.Sex == 0 && _chaFile != null)
-                __instance.ChaFile.Custom.body.shapeValueBody[0] = _chaFile.Custom.body.shapeValueBody[0];
-
-            __instance.gameObject.AddComponent<HeightModCharaController>();
+            if (_sex == 0 && _chaFile != null)
+                CapturedHeight.Add(_id, _chaFile.Custom.body.shapeValueBody[0]);
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(ChaControl), nameof(ChaControl.SetShapeBodyValue))]
-        public static void Remove_SetShapeBodyValueMaleHeightOverriding_Patch(ChaControl __instance, int index, float value)
+        [HarmonyPostfix, HarmonyPatch(typeof(ChaControl), nameof(ChaControl.Initialize))]
+        public static void Cancel_InitializeMaleHeightOverride(ChaControl __instance, byte _sex, int _id, ChaFileControl _chaFile = null)
         {
-            if (__instance.Sex == 0 && index == 0)
+            if (_sex == 0 && _chaFile != null && CapturedHeight.ContainsKey(_id))
             {
-                __instance.ChaFile.Custom.body.shapeValueBody[0] = value;
-                __instance.SIBBody.ChangeValue(0, value);
+                __instance.ChaFile.Custom.body.shapeValueBody[0] = CapturedHeight[_id];
+                CapturedHeight.Remove(_id);
             }
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(ChaControl), nameof(ChaControl.UpdateShapeBodyValueFromCustomInfo))]
-        public static void Remove_UpdateShapeBodyValueFromCustomInfoHeightOverridind_Patch(ChaControl __instance)
+        [HarmonyPostfix,
+            HarmonyPatch(typeof(ChaControl), nameof(ChaControl.InitShapeBody)),
+            HarmonyPatch(typeof(ChaControl), nameof(ChaControl.SetShapeBodyValue)),
+            HarmonyPatch(typeof(ChaControl), nameof(ChaControl.UpdateShapeBodyValueFromCustomInfo))]
+        public static void Cancel_MaleHeightOverride(ChaControl __instance)
         {
             if (__instance.Sex == 0)
+            {
                 __instance.SIBBody.ChangeValue(0, __instance.ChaFile.Custom.body.shapeValueBody[0]);
+                ChaInfo charaInfo = (ChaInfo)__instance;
+                charaInfo.UpdateShapeBody = true;
+            }
         }
     }
 }
+
+/* Keeping this code for futur ffeature for a size slider on both male and female
+
+ClassInjector.RegisterTypeInIl2Cpp<HeightModCharaController>();
+
+__instance.gameObject.AddComponent<HeightModCharaController>();
+
+public class HeightModCharaController : MonoBehaviour
+{
+    public ChaControl Chara { get; private set; }
+
+    protected void Awake() => MonoBehaviourExtensions.StartCoroutine(HeightMod.ControllerInstance, DelayApplyMaleHeight());
+
+    public IEnumerator DelayApplyMaleHeight()
+    {
+        Chara = GetComponent<ChaControl>();
+
+        for (int i = 0; i < 60; i++) yield return null;
+
+        PluginData data = ExtendedSave.GetExtendedDataById(Chara.ChaFile, HeightMod.GUID);
+        if (data != null && data.data.TryGetValue("SizeSaved", out var val) && val is float fVal)
+            Chara.ChaFile.Custom.body.shapeValueBody[0] = fVal;
+
+        ChaInfo charaInfo = (ChaInfo)Chara;
+        charaInfo.UpdateShapeBody = true;
+
+        Events.CardBeingSaved += OnCardBeingSaved;
+        HeightMod.ApplyHeight.SettingChanged += (sender, e) => charaInfo.UpdateShapeBody = true;
+    }
+
+    public void OnCardBeingSaved(ChaFile charaFile)
+    {
+        if (charaFile == Chara.ChaFile)
+        {
+            PluginData data = new PluginData();
+            data.data.Add("SizeSaved", Chara.ChaFile.Custom.body.shapeValueBody[0]);
+            data.version = 1;
+            ExtendedSave.SetExtendedDataById(Chara.ChaFile, HeightMod.GUID, data);
+        }
+    }
+}*/
